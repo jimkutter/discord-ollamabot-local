@@ -2,8 +2,10 @@ import os
 import discord
 import ollama
 import click
+import base64
 
 from dotenv import load_dotenv
+
 
 # Load variables from .env file
 load_dotenv()
@@ -11,10 +13,12 @@ load_dotenv()
 OLLAMABOT_DISCORD_TOKEN = os.environ.get("OLLAMABOT_DISCORD_TOKEN")
 OLLAMABOT_MODEL = os.environ.get("OLLAMABOT_MODEL")
 OLLAMABOT_SYSTEM_PROMPT = os.environ.get("OLLAMABOT_SYSTEM_PROMPT")
+OLLAMABOT_MULTIMODAL = os.environ.get("OLLAMABOT_MULTIMODAL")
 
 assert OLLAMABOT_DISCORD_TOKEN, "OLLAMABOT_DISCORD_TOKEN not set!"
 assert OLLAMABOT_MODEL, "OLLAMABOT_MODEL not set!"
 assert OLLAMABOT_SYSTEM_PROMPT, "OLLAMABOT_SYSTEM_PROMPT not set!"
+assert OLLAMABOT_MULTIMODAL, "OLLAMABOT_MULTIMODAL not set!"
 
 messages = list()
 
@@ -36,6 +40,8 @@ def its_alive(model_file):
         modelfile = model_file
 
     ollama.create(model="custom", modelfile=modelfile)
+    
+    is_multimodal = OLLAMABOT_MULTIMODAL.lower() == "true"
 
     @client.event
     async def on_ready():
@@ -44,6 +50,7 @@ def its_alive(model_file):
     @client.event
     async def on_message(message):
         print(message)
+        
         if message.author == client.user:
             return
 
@@ -52,6 +59,16 @@ def its_alive(model_file):
 
         
         print(message)
+        
+        images = []
+        if message.attachments:
+            for attachment in message.attachments:
+                if not attachment.filename.lower().endswith(('.png', '.jpg')):
+                    continue
+                
+                image_data = await attachment.read()
+                image_b64 = base64.b64encode(image_data).decode("utf-8")
+                images.append(image_b64)
 
         response = ollama.chat(
             model="custom",
@@ -59,6 +76,7 @@ def its_alive(model_file):
                             {
                 "role": "user",
                 "content": message.content,
+                "images": images if is_multimodal else None,
             },
             ],
         )
