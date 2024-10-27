@@ -12,22 +12,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OLLAMABOT_DISCORD_TOKEN = os.environ.get("OLLAMABOT_DISCORD_TOKEN")
-OLLAMABOT_MODEL = os.environ.get("OLLAMABOT_MODEL")
-OLLAMABOT_SYSTEM_PROMPT = os.environ.get("OLLAMABOT_SYSTEM_PROMPT")
 OLLAMABOT_MULTIMODAL = os.environ.get("OLLAMABOT_MULTIMODAL")
 OLLAMABOT_MAX_HISTORY_LEN = os.environ.get("OLLAMABOT_MAX_HISTORY_LEN")
 
 assert OLLAMABOT_DISCORD_TOKEN, "OLLAMABOT_DISCORD_TOKEN not set!"
-assert OLLAMABOT_MODEL, "OLLAMABOT_MODEL not set!"
-assert OLLAMABOT_SYSTEM_PROMPT, "OLLAMABOT_SYSTEM_PROMPT not set!"
 assert OLLAMABOT_MULTIMODAL, "OLLAMABOT_MULTIMODAL not set!"
 assert OLLAMABOT_MAX_HISTORY_LEN, "OLLAMABOT_MAX_HISTORY_LEN not set!"
 
 messages = list()
 conversation_histories = dict()
 
+
 @click.command()
-@click.option("--model-file", type=click.File("rb"))
+@click.option("--model-file", type=click.File())
 def its_alive(model_file):
     global messages
     intents = discord.Intents.default()
@@ -36,17 +33,32 @@ def its_alive(model_file):
     client = discord.Client(intents=intents)
 
     if model_file is None:
+        OLLAMABOT_MODEL = os.environ.get("OLLAMABOT_MODEL")
+        OLLAMABOT_SYSTEM_PROMPT = os.environ.get("OLLAMABOT_SYSTEM_PROMPT")
+
+        assert OLLAMABOT_MODEL, "OLLAMABOT_MODEL not set!"
+        assert OLLAMABOT_SYSTEM_PROMPT, "OLLAMABOT_SYSTEM_PROMPT not set!"
+
         modelfile = f"""
         FROM {OLLAMABOT_MODEL}
         SYSTEM {OLLAMABOT_SYSTEM_PROMPT}
         """
     else:
-        modelfile = model_file
+        print(f"Reading from {model_file}")
+        modelfile = model_file.read()
 
-    ollama.create(model="custom", modelfile=modelfile)
+    resp = ollama.create(model="custom", modelfile=modelfile)
+
+    for line in resp:
+        print(line)
     
-    is_multimodal = OLLAMABOT_MULTIMODAL.lower() == "true"
-    max_history_len = int(OLLAMABOT_MAX_HISTORY_LEN)
+    is_multimodal = bool(OLLAMABOT_MULTIMODAL)
+    max_history_len = 10
+    try:
+        max_history_len = int(OLLAMABOT_MAX_HISTORY_LEN)
+    except ValueError:
+        print(f"OLLAMABOT_MAX_HISTORY_LEN wasn't an int, defaulting to {max_history_len}")
+        pass
 
     @client.event
     async def on_ready():

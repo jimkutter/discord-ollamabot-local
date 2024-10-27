@@ -1,7 +1,7 @@
 [project]
 name = "ollamabot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Connect discord to ollama running locally"
 dependencies = [
     "discord-py>=2.4.0",
     "python-dotenv>=1.0.1",
@@ -21,6 +21,3 @@ dev-dependencies = []
 
 [tool.hatch.metadata]
 allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/ollamabot"]

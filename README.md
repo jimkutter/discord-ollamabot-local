@@ -10,4 +10,6 @@ Run any locally install ollama bot and connect it directly to discord.
 
 ### Geting up and running
 * `rye sync`
+* Make sure your `.env` is setup (see `env.example`)
 * `python ollamabot.py --help`
+* `python ollamabot.py --model-file Modelfile.example`
