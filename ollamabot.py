@@ -1,8 +1,10 @@
 import os
+import sys
 import discord
 import ollama
 import click
 import base64
+import pathlib
 from collections import deque
 
 from dotenv import load_dotenv
@@ -19,45 +21,34 @@ assert OLLAMABOT_DISCORD_TOKEN, "OLLAMABOT_DISCORD_TOKEN not set!"
 assert OLLAMABOT_MULTIMODAL, "OLLAMABOT_MULTIMODAL not set!"
 assert OLLAMABOT_MAX_HISTORY_LEN, "OLLAMABOT_MAX_HISTORY_LEN not set!"
 
-messages = list()
 conversation_histories = dict()
 
 
 @click.command()
 @click.option("--model-file", type=click.File())
 def its_alive(model_file):
-    global messages
     intents = discord.Intents.default()
     intents.message_content = True
 
     client = discord.Client(intents=intents)
 
     if model_file is None:
-        OLLAMABOT_MODEL = os.environ.get("OLLAMABOT_MODEL")
-        OLLAMABOT_SYSTEM_PROMPT = os.environ.get("OLLAMABOT_SYSTEM_PROMPT")
+        model_file = (pathlib.Path(__file__).parent / "Modelfile.example").open()
 
-        assert OLLAMABOT_MODEL, "OLLAMABOT_MODEL not set!"
-        assert OLLAMABOT_SYSTEM_PROMPT, "OLLAMABOT_SYSTEM_PROMPT not set!"
+    print(f"Reading from {model_file}")
+    modelfile = model_file.read()
 
-        modelfile = f"""
-        FROM {OLLAMABOT_MODEL}
-        SYSTEM {OLLAMABOT_SYSTEM_PROMPT}
-        """
-    else:
-        print(f"Reading from {model_file}")
-        modelfile = model_file.read()
+    for resp in ollama.create(model="custom", modelfile=modelfile, stream=True):
+        print(resp)
 
-    resp = ollama.create(model="custom", modelfile=modelfile)
-
-    for line in resp:
-        print(line)
-    
     is_multimodal = bool(OLLAMABOT_MULTIMODAL)
     max_history_len = 10
     try:
         max_history_len = int(OLLAMABOT_MAX_HISTORY_LEN)
     except ValueError:
-        print(f"OLLAMABOT_MAX_HISTORY_LEN wasn't an int, defaulting to {max_history_len}")
+        print(
+            f"OLLAMABOT_MAX_HISTORY_LEN wasn't an int, defaulting to {max_history_len}"
+        )
         pass
 
     @client.event
@@ -67,7 +58,7 @@ def its_alive(model_file):
     @client.event
     async def on_message(message):
         print(message)
-        
+
         if message.author == client.user:
             return
 
@@ -77,32 +68,34 @@ def its_alive(model_file):
         channel_id = message.channel.id
         if channel_id not in conversation_histories:
             conversation_histories[channel_id] = deque(maxlen=max_history_len)
-        
+
         print(message)
 
         # Proper shutdown with stopping the model
         if message.content.strip() == f"<@{client.user.id}> /shutdown":
             if message.author.guild_permissions.administrator:
-                await message.channel.send("Verily, thou shalt not witness mine ultimate demise...")
+                await message.channel.send(
+                    "Verily, thou shalt not witness mine ultimate demise..."
+                )
                 await message.channel.send("Lo, I shall return anon, as is my wont.")
                 await client.close()
-                ollama.stop(model="custom")
+                sys.exit(0x00)
             else:
-                await message.channel.send("Thou, of lesser station, art unfit to command mine cessation.")
+                await message.channel.send(
+                    "Thou, of lesser station, art unfit to command mine cessation."
+                )
                 return
-        
+
         images = []
         if message.attachments and is_multimodal:
             for attachment in message.attachments:
-                if not attachment.filename.lower().endswith(('.png', '.jpg')):
+                if not attachment.filename.lower().endswith((".png", ".jpg")):
                     continue
-                
+
                 image_data = await attachment.read()
                 image_b64 = base64.b64encode(image_data).decode("utf-8")
                 images.append(image_b64)
                 print("Image appended")
-                
-        
 
         current_message = {
             "role": "user",
@@ -123,10 +116,9 @@ def its_alive(model_file):
 
         rspv_msg = response["message"]["content"]
 
-        conversation_histories[channel_id].append({
-            "role": "assistant",
-            "content": rspv_msg
-        })
+        conversation_histories[channel_id].append(
+            {"role": "assistant", "content": rspv_msg}
+        )
 
         print(response)
 
@@ -139,4 +131,3 @@ def its_alive(model_file):
 
 if __name__ == "__main__":
     its_alive()
-    
